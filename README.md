@@ -2,6 +2,12 @@
 
 動画に画像を挿入するComfyUIカスタムノード
 
+<img width="1652" height="1010" alt="image" src="https://github.com/user-attachments/assets/953c5794-40af-4b71-bc56-7b5dc157219a" />
+
+## 出力
+
+https://github.com/user-attachments/assets/ee8c115f-81fc-4299-af9a-1381d90b1e4a
+
 ## ComfyUIへの導入
 
 1. ComfyUIの `custom_nodes` フォルダにこのプロジェクトをクローン
