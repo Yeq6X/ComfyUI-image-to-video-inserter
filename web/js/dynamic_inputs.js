@@ -27,7 +27,13 @@ app.registerExtension({
                         if(target_number_of_inputs < num_image_inputs) {
                             const inputs_to_remove = num_image_inputs - target_number_of_inputs;
                             for(let i = 0; i < inputs_to_remove; i++) {
-                                this.removeInput(this.inputs.length - 1);
+                                // 末尾の画像入力を削除（image_2, image_3, ... の順）
+                                for(let j = this.inputs.length - 1; j >= 0; j--) {
+                                    if(this.inputs[j].type === this._imageType) {
+                                        this.removeInput(j);
+                                        break;
+                                    }
+                                }
                             }
                         }
                         
