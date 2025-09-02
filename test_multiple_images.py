@@ -98,8 +98,8 @@ def main(output_fps=24):
     
     # ベースとなる黒い動画フレームを作成
     print("\nベースフレームを作成中...")
-    base_frames = create_blank_frames(640, 416, 100, color=(0, 0, 0))
-    print(f"作成完了: 640x416, 100フレーム, 出力FPS={output_fps}")
+    base_frames = create_blank_frames(416, 640, 100, color=(0, 0, 0))
+    print(f"作成完了: 416x640, 100フレーム, 出力FPS={output_fps}")
     
     # テストケース一覧
     test_cases = [
