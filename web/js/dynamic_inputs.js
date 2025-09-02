@@ -12,7 +12,7 @@ app.registerExtension({
                     this.addWidget("number", "frame_1", 10, (value) => {}, {"min": 0, "max": 10000, "step": 1});
                     this.addWidget("number", "frame_2", 20, (value) => {}, {"min": 0, "max": 10000, "step": 1});
                     
-                    this.addWidget("button", "Update inputs", null, () => {
+                    const updateButton = this.addWidget("button", "Update inputs", null, () => {
                         if (!this.inputs) {
                             this.inputs = [];
                         }
@@ -62,9 +62,18 @@ app.registerExtension({
                         
                         // Add new frame widgets
                         for(let i = num_frame_widgets + 1; i <= target_number_of_inputs; ++i) {
-                            this.addWidget("number", `frame_${i}`, i * 10, (value) => {
+                            const frameWidget = this.addWidget("number", `frame_${i}`, i * 10, (value) => {
                                 // ウィジェット値の更新処理
                             }, {"min": 0, "max": 10000, "step": 1});
+                        }
+                        
+                        // Update inputsボタンを最後尾に移動
+                        if (updateButton) {
+                            const buttonIndex = this.widgets.indexOf(updateButton);
+                            if (buttonIndex !== -1 && buttonIndex !== this.widgets.length - 1) {
+                                this.widgets.splice(buttonIndex, 1);
+                                this.widgets.push(updateButton);
+                            }
                         }
                     });
                 }
