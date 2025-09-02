@@ -13,13 +13,13 @@ from insert_image_to_video import (
 
 def create_test_images():
     """
-    テスト用の画像を生成（image1.png, image2.png, image3.png）
+    テスト用の画像をtest_output内に生成（image1.png, image2.png, image3.png）
     """
     # 画像1: 赤い四角
     img1 = np.zeros((416, 640, 4), dtype=np.uint8)
     img1[:, :, 2] = 255  # Red channel
     img1[100:316, 100:540, 3] = 255  # Alpha channel (中央に四角)
-    cv2.imwrite("image1.png", img1)
+    cv2.imwrite("test_output/image1.png", img1)
     
     # 画像2: 緑の円
     img2 = np.zeros((416, 640, 4), dtype=np.uint8)
@@ -30,7 +30,7 @@ def create_test_images():
     y, x = np.ogrid[:416, :640]
     mask = (x - center[0]) ** 2 + (y - center[1]) ** 2 <= radius ** 2
     img2[mask, 3] = 255
-    cv2.imwrite("image2.png", img2)
+    cv2.imwrite("test_output/image2.png", img2)
     
     # 画像3: 青い三角形
     img3 = np.zeros((416, 640, 4), dtype=np.uint8)
@@ -42,9 +42,9 @@ def create_test_images():
     mask = np.zeros((416, 640), dtype=np.uint8)
     cv2.fillPoly(mask, [pts], 255)
     img3[:, :, 3] = mask
-    cv2.imwrite("image3.png", img3)
+    cv2.imwrite("test_output/image3.png", img3)
     
-    print("テスト用画像を生成しました: image1.png, image2.png, image3.png")
+    print("テスト用画像を生成しました: test_output/image1.png, image2.png, image3.png")
 
 
 def run_test(test_name, frames, image_insertions, fade_width=1, min_opacity=0.0, fps=24, description=""):
@@ -106,7 +106,7 @@ def main(output_fps=24):
         # 1. 基本的なケース
         {
             "name": "01_single_image",
-            "insertions": [(50, "image1.png")],
+            "insertions": [(50, "test_output/image1.png")],
             "fade_width": 2,
             "min_opacity": 0.0,
             "description": "単一画像の挿入（フレーム50）"
@@ -115,7 +115,7 @@ def main(output_fps=24):
         # 1.5. 最小透明度テスト
         {
             "name": "01b_min_opacity_test",
-            "insertions": [(50, "image1.png")],
+            "insertions": [(50, "test_output/image1.png")],
             "fade_width": 3,
             "min_opacity": 0.5,
             "description": "最小透明度テスト（min_opacity=0.5）"
@@ -124,7 +124,7 @@ def main(output_fps=24):
         # 1.6. 完全透明テスト
         {
             "name": "01c_full_fade",
-            "insertions": [(50, "image1.png")],
+            "insertions": [(50, "test_output/image1.png")],
             "fade_width": 5,
             "min_opacity": 0.0,
             "description": "完全フェードテスト（min_opacity=0.0）"
@@ -133,7 +133,7 @@ def main(output_fps=24):
         # 2. 複数画像（重ならない）
         {
             "name": "02_multiple_no_overlap",
-            "insertions": [(20, "image1.png"), (50, "image2.png"), (80, "image3.png")],
+            "insertions": [(20, "test_output/image1.png"), (50, "test_output/image2.png"), (80, "test_output/image3.png")],
             "fade_width": 2,
             "min_opacity": 0.0,
             "description": "複数画像の挿入（重なりなし）"
@@ -142,7 +142,7 @@ def main(output_fps=24):
         # 3. 隣接する画像
         {
             "name": "03_adjacent_images",
-            "insertions": [(30, "image1.png"), (33, "image2.png")],
+            "insertions": [(30, "test_output/image1.png"), (33, "test_output/image2.png")],
             "fade_width": 2,
             "description": "隣接する画像（フェード領域が重なる）"
         },
@@ -150,7 +150,7 @@ def main(output_fps=24):
         # 4. 完全に重なる画像
         {
             "name": "04_same_frame",
-            "insertions": [(50, "image1.png"), (50, "image2.png")],
+            "insertions": [(50, "test_output/image1.png"), (50, "test_output/image2.png")],
             "fade_width": 2,
             "description": "同じフレームに複数画像"
         },
@@ -158,7 +158,7 @@ def main(output_fps=24):
         # 5. 連続する画像
         {
             "name": "05_consecutive_frames",
-            "insertions": [(40, "image1.png"), (41, "image2.png"), (42, "image3.png")],
+            "insertions": [(40, "test_output/image1.png"), (41, "test_output/image2.png"), (42, "test_output/image3.png")],
             "fade_width": 1,
             "description": "連続するフレームに画像挿入"
         },
@@ -166,7 +166,7 @@ def main(output_fps=24):
         # 6. フェード幅0（カット）
         {
             "name": "06_no_fade",
-            "insertions": [(30, "image1.png"), (31, "image2.png")],
+            "insertions": [(30, "test_output/image1.png"), (31, "test_output/image2.png")],
             "fade_width": 0,
             "description": "フェードなし（ハードカット）"
         },
@@ -174,7 +174,7 @@ def main(output_fps=24):
         # 7. 大きなフェード幅
         {
             "name": "07_large_fade",
-            "insertions": [(50, "image1.png")],
+            "insertions": [(50, "test_output/image1.png")],
             "fade_width": 10,
             "description": "大きなフェード幅（±10フレーム）"
         },
@@ -182,7 +182,7 @@ def main(output_fps=24):
         # 8. 境界付近（開始）
         {
             "name": "08_near_start",
-            "insertions": [(2, "image1.png")],
+            "insertions": [(2, "test_output/image1.png")],
             "fade_width": 3,
             "description": "動画開始付近での挿入"
         },
@@ -190,7 +190,7 @@ def main(output_fps=24):
         # 9. 境界付近（終了）
         {
             "name": "09_near_end",
-            "insertions": [(98, "image1.png")],
+            "insertions": [(98, "test_output/image1.png")],
             "fade_width": 3,
             "description": "動画終了付近での挿入"
         },
@@ -198,7 +198,7 @@ def main(output_fps=24):
         # 10. 境界エッジケース
         {
             "name": "10_boundary_edge",
-            "insertions": [(0, "image1.png"), (99, "image2.png")],
+            "insertions": [(0, "test_output/image1.png"), (99, "test_output/image2.png")],
             "fade_width": 2,
             "description": "最初と最後のフレーム"
         },
@@ -206,7 +206,7 @@ def main(output_fps=24):
         # 11. 3つの画像が重なる
         {
             "name": "11_triple_overlap",
-            "insertions": [(50, "image1.png"), (51, "image2.png"), (52, "image3.png")],
+            "insertions": [(50, "test_output/image1.png"), (51, "test_output/image2.png"), (52, "test_output/image3.png")],
             "fade_width": 2,
             "description": "3つの画像のフェードが重なる"
         },
@@ -214,8 +214,8 @@ def main(output_fps=24):
         # 12. パターン的な配置
         {
             "name": "12_pattern",
-            "insertions": [(10, "image1.png"), (20, "image2.png"), (30, "image3.png"),
-                          (40, "image1.png"), (50, "image2.png"), (60, "image3.png")],
+            "insertions": [(10, "test_output/image1.png"), (20, "test_output/image2.png"), (30, "test_output/image3.png"),
+                          (40, "test_output/image1.png"), (50, "test_output/image2.png"), (60, "test_output/image3.png")],
             "fade_width": 2,
             "description": "パターン的な画像配置"
         },
@@ -223,8 +223,8 @@ def main(output_fps=24):
         # 13. 高密度配置
         {
             "name": "13_high_density",
-            "insertions": [(45, "image1.png"), (46, "image2.png"), (47, "image3.png"),
-                          (48, "image1.png"), (49, "image2.png"), (50, "image3.png")],
+            "insertions": [(45, "test_output/image1.png"), (46, "test_output/image2.png"), (47, "test_output/image3.png"),
+                          (48, "test_output/image1.png"), (49, "test_output/image2.png"), (50, "test_output/image3.png")],
             "fade_width": 1,
             "description": "高密度での画像配置"
         },
@@ -232,7 +232,7 @@ def main(output_fps=24):
         # 14. フェード幅が異なる組み合わせ（同じfade_widthだが位置による影響をテスト）
         {
             "name": "14_variable_overlap",
-            "insertions": [(30, "image1.png"), (34, "image2.png"), (35, "image3.png")],
+            "insertions": [(30, "test_output/image1.png"), (34, "test_output/image2.png"), (35, "test_output/image3.png")],
             "fade_width": 3,
             "description": "様々な重なり具合のテスト"
         },
@@ -240,7 +240,7 @@ def main(output_fps=24):
         # 15. ストレステスト
         {
             "name": "15_stress_test",
-            "insertions": [(i, f"image{(i % 3) + 1}.png") for i in range(10, 90, 5)],
+            "insertions": [(i, f"test_output/image{(i % 3) + 1}.png") for i in range(10, 90, 5)],
             "fade_width": 2,
             "description": "多数の画像挿入（5フレームごとに16枚）"
         }
