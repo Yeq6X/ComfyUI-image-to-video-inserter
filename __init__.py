@@ -101,62 +101,35 @@ class ImageFrameSelector:
                 "output_type": (["list", "tensor"], {"default": "list"}),
                 "image_1": ("IMAGE",),
                 "image_2": ("IMAGE",),
-                "frame_indices": ("STRING", {"default": "10,20", "multiline": False}),
             }
         }
         
         return inputs
 
-    RETURN_TYPES = ("IMAGE", "STRING",)
-    RETURN_NAMES = ("images", "frame_indices",)
+    RETURN_TYPES = ("IMAGE",)
+    RETURN_NAMES = ("images",)
     FUNCTION = "select_images_and_frames"
     CATEGORY = "Video/Frames"
 
-    def select_images_and_frames(self, inputcount, output_type, frame_indices="10,20", **kwargs):
+    def select_images_and_frames(self, inputcount, output_type, **kwargs):
         images = []
         
-        # フレームインデックス文字列を解析
-        if frame_indices.strip():
-            # カンマ区切りで分割して整数リストに変換
-            indices_list = []
-            parts = frame_indices.replace(" ", "").split(",")
-            for part in parts:
-                try:
-                    indices_list.append(int(part))
-                except ValueError:
-                    print(f"Warning: Invalid frame index '{part}', skipping")
-        else:
-            indices_list = []
-        
-        # 画像を収集し、対応するフレームインデックスを取得
-        result_indices = []
         for i in range(1, inputcount + 1):
             image_key = f"image_{i}"
             
             # 画像が存在する場合のみ処理
             if image_key in kwargs and kwargs[image_key] is not None:
                 images.append(kwargs[image_key])
-                
-                # 対応するフレームインデックスを取得（不足分はデフォルト値）
-                if i - 1 < len(indices_list):
-                    frame_idx = indices_list[i - 1]
-                else:
-                    frame_idx = i * 10  # デフォルト値
-                
-                result_indices.append(str(frame_idx))
-        
-        # 結果のフレームインデックス文字列
-        indices_string = ",".join(result_indices) if result_indices else frame_indices
         
         # 出力タイプに応じて処理
         if output_type == "list":
             # リスト形式で返す（サイズ違いもそのまま）
             if images:
-                return (images, indices_string)
+                return (images,)
             else:
                 # 空の場合はダミー画像リストを作成
                 dummy_image = torch.zeros((1, 64, 64, 3))
-                return ([dummy_image], indices_string)
+                return ([dummy_image],)
         else:
             # tensor形式で返す（従来通り、サイズを揃えてパディング）
             if images:
@@ -194,11 +167,11 @@ class ImageFrameSelector:
                 
                 # 結合
                 combined_images = torch.cat(padded_images, dim=0)
-                return (combined_images, indices_string)
+                return (combined_images,)
             else:
                 # 空の場合はダミー画像を作成
                 combined_images = torch.zeros((1, 64, 64, 3))
-                return (combined_images, indices_string)
+                return (combined_images,)
 
 class MultiImageInserter:
     @classmethod
