@@ -112,16 +112,14 @@ class ImageFrameSelector:
         images = []
         frame_indices = []
         
-        # ウィジェットからフレーム番号を取得
-        widget_values = getattr(self, 'widget_values', {})
-        
         for i in range(1, inputcount + 1):
             image_key = f"image_{i}"
+            frame_key = f"frame_{i}"
             
             if image_key in kwargs and kwargs[image_key] is not None:
                 images.append(kwargs[image_key])
-                # ウィジェットの値またはデフォルト値を使用
-                frame_idx = widget_values.get(f"frame_{i}", i * 10)
+                # kwargsからフレーム番号を取得（ウィジェット値として渡される）
+                frame_idx = int(kwargs.get(frame_key, i * 10))
                 frame_indices.append(str(frame_idx))
         
         # フレームインデックスをカンマ区切り文字列に変換
