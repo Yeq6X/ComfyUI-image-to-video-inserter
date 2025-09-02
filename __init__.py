@@ -91,27 +91,62 @@ class CreateBlankFrames:
         
         return (tensor_frames,)
 
+class ImageFrameSelector:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "inputcount": ("INT", {"default": 2, "min": 1, "max": 20, "step": 1}),
+                "image_1": ("IMAGE",),
+                "frame_1": ("INT", {"default": 10, "min": 0, "max": 10000}),
+                "image_2": ("IMAGE",),
+                "frame_2": ("INT", {"default": 20, "min": 0, "max": 10000}),
+            }
+        }
+
+    RETURN_TYPES = ("IMAGE", "STRING",)
+    RETURN_NAMES = ("images", "frame_indices",)
+    FUNCTION = "select_images_and_frames"
+    CATEGORY = "Video/Frames"
+
+    def select_images_and_frames(self, inputcount, **kwargs):
+        images = []
+        frame_indices = []
+        
+        for i in range(1, inputcount + 1):
+            image_key = f"image_{i}"
+            frame_key = f"frame_{i}"
+            
+            if image_key in kwargs and kwargs[image_key] is not None:
+                images.append(kwargs[image_key])
+                frame_idx = kwargs.get(frame_key, i * 10)
+                frame_indices.append(str(frame_idx))
+        
+        # 画像配列を結合
+        if images:
+            combined_images = torch.cat(images, dim=0)
+        else:
+            # 空の場合はダミー画像を作成
+            combined_images = torch.zeros((1, 64, 64, 3))
+        
+        # フレームインデックスをカンマ区切り文字列に変換
+        indices_string = ",".join(frame_indices)
+        
+        return (combined_images, indices_string)
+
 class MultiImageInserter:
     @classmethod
     def INPUT_TYPES(s):
         return {
             "required": {
                 "frames": ("IMAGE",),
+                "images": ("IMAGE",),
+                "frame_indices": ("STRING", {"default": "10,20,30"}),
                 "fade_width": ("INT", {"default": 2, "min": 0, "max": 20}),
                 "min_opacity": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 1.0, "step": 0.1}),
                 "blend_mode": (["auto", "additive", "override"], {"default": "auto"}),
             },
             "optional": {
-                "image_1": ("IMAGE",),
-                "frame_1": ("INT", {"default": 10, "min": 0, "max": 10000}),
-                "image_2": ("IMAGE",),
-                "frame_2": ("INT", {"default": 20, "min": 0, "max": 10000}),
-                "image_3": ("IMAGE",),
-                "frame_3": ("INT", {"default": 30, "min": 0, "max": 10000}),
-                "image_4": ("IMAGE",),
-                "frame_4": ("INT", {"default": 40, "min": 0, "max": 10000}),
-                "image_5": ("IMAGE",),
-                "frame_5": ("INT", {"default": 50, "min": 0, "max": 10000}),
                 "background_frames": ("IMAGE",),
             }
         }
@@ -121,23 +156,34 @@ class MultiImageInserter:
     FUNCTION = "insert_images"
     CATEGORY = "Video/Frames"
 
-    def insert_images(self, frames, fade_width, min_opacity, blend_mode, **kwargs):
+    def parse_frame_indices(self, indices_string):
+        """カンマ区切り文字列をフレームインデックスのリストに変換"""
+        if not indices_string.strip():
+            return []
+        
+        indices = []
+        parts = indices_string.replace(" ", "").split(",")
+        
+        for part in parts:
+            try:
+                indices.append(int(part))
+            except ValueError:
+                print(f"Invalid frame index: {part}")
+        
+        return indices
+
+    def insert_images(self, frames, images, frame_indices, fade_width, min_opacity, blend_mode, **kwargs):
         # フレームをnumpy配列に変換
         frame_list = tensor_to_frames(frames)
         
-        # 画像挿入リストを構築
-        image_insertions = []
-        for i in range(1, 6):  # image_1 から image_5 まで
-            image_key = f"image_{i}"
-            frame_key = f"frame_{i}"
-            
-            if image_key in kwargs and kwargs[image_key] is not None:
-                frame_idx = kwargs.get(frame_key, i * 10)
-                
-                # ComfyUIテンソルをnumpy配列に変換
-                image_tensor = kwargs[image_key]
-                if image_tensor.dim() == 4:
-                    image_tensor = image_tensor.squeeze(0)
+        # フレームインデックスを解析
+        indices = self.parse_frame_indices(frame_indices)
+        
+        # 画像を分割してリストに変換
+        image_list = []
+        if images.dim() == 4:  # バッチ次元がある場合
+            for i in range(images.shape[0]):
+                image_tensor = images[i:i+1]
                 
                 # PIL経由でnumpy配列に変換
                 pil_image = tensor_to_pil(image_tensor)
@@ -151,8 +197,13 @@ class MultiImageInserter:
                 
                 # RGBAからBGRAに変換
                 bgra_image = cv2.cvtColor(numpy_image, cv2.COLOR_RGBA2BGRA)
-                
-                image_insertions.append((frame_idx, bgra_image))
+                image_list.append(bgra_image)
+        
+        # 画像挿入リストを構築
+        image_insertions = []
+        min_count = min(len(indices), len(image_list))
+        for i in range(min_count):
+            image_insertions.append((indices[i], image_list[i]))
         
         if not image_insertions:
             # 画像が指定されていない場合、元のフレームを返す
@@ -188,12 +239,16 @@ class MultiImageInserter:
 # ComfyUIノード登録
 NODE_CLASS_MAPPINGS = {
     "CreateBlankFrames": CreateBlankFrames,
+    "ImageFrameSelector": ImageFrameSelector,
     "MultiImageInserter": MultiImageInserter,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
     "CreateBlankFrames": "Create Blank Frames",
+    "ImageFrameSelector": "Image Frame Selector",
     "MultiImageInserter": "Multi Image Inserter",
 }
 
-__all__ = ['NODE_CLASS_MAPPINGS', 'NODE_DISPLAY_NAME_MAPPINGS']
+WEB_DIRECTORY = "./web"
+
+__all__ = ['NODE_CLASS_MAPPINGS', 'NODE_DISPLAY_NAME_MAPPINGS', 'WEB_DIRECTORY']
