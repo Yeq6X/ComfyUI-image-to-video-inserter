@@ -94,7 +94,8 @@ class CreateBlankFrames:
 class ImageFrameSelector:
     @classmethod
     def INPUT_TYPES(s):
-        return {
+        # 基本の必須入力
+        inputs = {
             "required": {
                 "inputcount": ("INT", {"default": 2, "min": 1, "max": 1000, "step": 1}),
                 "output_type": (["list", "tensor"], {"default": "list"}),
@@ -102,6 +103,10 @@ class ImageFrameSelector:
                 "image_2": ("IMAGE",),
             }
         }
+        
+        # frame_*パラメータは動的に追加されるので、optionalに配置
+        # ただし、実際の値はウィジェットから取得される
+        return inputs
 
     RETURN_TYPES = ("IMAGE", "STRING",)
     RETURN_NAMES = ("images", "frame_indices",)
@@ -112,14 +117,28 @@ class ImageFrameSelector:
         images = []
         frame_indices = []
         
+        # デバッグ用：kwargsの内容を出力
+        print(f"DEBUG: ImageFrameSelector kwargs keys: {list(kwargs.keys())}")
+        
         for i in range(1, inputcount + 1):
             image_key = f"image_{i}"
             frame_key = f"frame_{i}"
             
+            # 画像が存在する場合のみ処理
             if image_key in kwargs and kwargs[image_key] is not None:
                 images.append(kwargs[image_key])
-                # kwargsからフレーム番号を取得（ウィジェット値として渡される）
-                frame_idx = int(kwargs.get(frame_key, i * 10))
+                
+                # フレーム番号の取得を試行
+                frame_idx = i * 10  # デフォルト値
+                
+                # 複数の方法でフレーム値を取得を試行
+                if frame_key in kwargs:
+                    try:
+                        frame_idx = int(kwargs[frame_key])
+                        print(f"DEBUG: Got frame_{i} = {frame_idx} from kwargs")
+                    except (ValueError, TypeError):
+                        print(f"DEBUG: Failed to parse frame_{i} from kwargs: {kwargs[frame_key]}")
+                
                 frame_indices.append(str(frame_idx))
         
         # フレームインデックスをカンマ区切り文字列に変換
