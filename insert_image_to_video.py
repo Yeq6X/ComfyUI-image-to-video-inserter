@@ -398,42 +398,84 @@ def apply_layers_to_frame(
     return np.clip(result, 0, 255).astype(np.uint8)
 
 
+def load_frames_from_video(video_path: str) -> Tuple[List[np.ndarray], int, int, int]:
+    """
+    動画ファイルからフレームを読み込む
+    
+    Args:
+        video_path: 動画ファイルパス
+    
+    Returns:
+        (frames, fps, width, height) のタプル
+    """
+    cap = cv2.VideoCapture(video_path)
+    if not cap.isOpened():
+        raise ValueError(f"動画ファイルを開けません: {video_path}")
+    
+    fps = int(cap.get(cv2.CAP_PROP_FPS))
+    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    
+    frames = []
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            break
+        frames.append(frame)
+    
+    cap.release()
+    return frames, fps, width, height
+
+
+def save_frames_to_video(frames: List[np.ndarray], output_path: str, fps: int = 30) -> None:
+    """
+    フレーム配列を動画ファイルとして保存
+    
+    Args:
+        frames: フレーム配列
+        output_path: 出力動画ファイルパス
+        fps: フレームレート
+    """
+    if not frames:
+        raise ValueError("フレーム配列が空です")
+    
+    height, width = frames[0].shape[:2]
+    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+    out = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
+    
+    for frame in frames:
+        out.write(frame)
+    
+    out.release()
+    cv2.destroyAllWindows()
+
+
 def insert_multiple_images_to_frames(
-    frames: Union[List[np.ndarray], None],
+    frames: List[np.ndarray],
     image_insertions: List[Tuple[int, Union[str, np.ndarray]]],
     fade_width: int = 1,
     blend_mode: str = "auto",
     background_frames: Optional[List[np.ndarray]] = None,
-    width: Optional[int] = None,
-    height: Optional[int] = None,
-    num_frames: Optional[int] = None,
     verbose: bool = True
 ) -> List[np.ndarray]:
     """
     複数画像を自動的にフェード付きで挿入
     
     Args:
-        frames: フレーム配列またはNone（新規作成する場合）
+        frames: フレーム配列
         image_insertions: [(frame_idx, image_path_or_array), ...]
         fade_width: フェードイン/アウトのフレーム幅
         blend_mode: "auto"（calculate_blend_custom使用）, "additive", "override"
         background_frames: 背景フレーム配列（オプション）
-        width: フレーム幅（frames=Noneの場合必須）
-        height: フレーム高さ（frames=Noneの場合必須）
-        num_frames: フレーム数（frames=Noneの場合必須）
         verbose: 詳細出力
     
     Returns:
         処理されたフレームのリスト
     """
-    # フレーム配列の準備
-    if frames is None:
-        if width is None or height is None or num_frames is None:
-            raise ValueError("frames=Noneの場合、width, height, num_framesが必要です")
-        frames = create_blank_frames(width, height, num_frames)
-        total_frames = num_frames
-    else:
-        total_frames = len(frames)
+    if not frames:
+        raise ValueError("フレーム配列が空です")
+    
+    total_frames = len(frames)
     
     if background_frames is None:
         background_frames = frames
