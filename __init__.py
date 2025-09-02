@@ -2,6 +2,10 @@ import torch
 import numpy as np
 from PIL import Image
 import cv2
+import base64
+import io
+import tempfile
+import os
 from typing import List, Tuple, Union, Optional, Dict
 
 # 既存のinsert_image_to_video.pyから必要な関数をインポート
@@ -61,6 +65,26 @@ def tensor_to_frames(tensor):
         bgr_frames.append(bgr_frame)
     
     return bgr_frames
+
+def base64_to_pil_images(base64_strings):
+    """base64文字列のリストをPIL Imageのリストに変換"""
+    pil_images = []
+    for b64_string in base64_strings:
+        try:
+            # base64デコード
+            image_data = base64.b64decode(b64_string)
+            # PIL Imageに変換
+            pil_image = Image.open(io.BytesIO(image_data))
+            # RGBに変換（必要に応じて）
+            if pil_image.mode != 'RGB':
+                pil_image = pil_image.convert('RGB')
+            pil_images.append(pil_image)
+        except Exception as e:
+            print(f"Error decoding base64 image: {e}")
+            # エラーの場合はダミー画像を作成
+            pil_images.append(Image.new('RGB', (64, 64), color=(0, 0, 0)))
+    
+    return pil_images
 
 class CreateBlankFrames:
     @classmethod
@@ -224,20 +248,50 @@ class MultiImageInserter:
         # imagesがリストかテンソルかを判定
         if isinstance(images, list):
             # リスト形式の場合
-            for image_tensor in images:
-                # PIL経由でnumpy配列に変換
-                pil_image = tensor_to_pil(image_tensor)
-                numpy_image = np.array(pil_image)
-                
-                # BGRAフォーマットに変換（アルファチャンネル付きで処理）
-                if numpy_image.shape[2] == 3:
-                    # アルファチャンネルを追加
-                    alpha = np.ones((numpy_image.shape[0], numpy_image.shape[1], 1), dtype=np.uint8) * 255
-                    numpy_image = np.concatenate([numpy_image, alpha], axis=2)
-                
-                # RGBAからBGRAに変換
-                bgra_image = cv2.cvtColor(numpy_image, cv2.COLOR_RGBA2BGRA)
-                image_list.append(bgra_image)
+            for item in images:
+                if isinstance(item, str):
+                    # base64文字列の場合
+                    try:
+                        # base64デコード
+                        image_data = base64.b64decode(item)
+                        # PIL Imageに変換
+                        pil_image = Image.open(io.BytesIO(image_data))
+                        # RGBに変換（必要に応じて）
+                        if pil_image.mode != 'RGB':
+                            pil_image = pil_image.convert('RGB')
+                        
+                        numpy_image = np.array(pil_image)
+                        
+                        # BGRAフォーマットに変換（アルファチャンネル付きで処理）
+                        if numpy_image.shape[2] == 3:
+                            # アルファチャンネルを追加
+                            alpha = np.ones((numpy_image.shape[0], numpy_image.shape[1], 1), dtype=np.uint8) * 255
+                            numpy_image = np.concatenate([numpy_image, alpha], axis=2)
+                        
+                        # RGBAからBGRAに変換
+                        bgra_image = cv2.cvtColor(numpy_image, cv2.COLOR_RGBA2BGRA)
+                        image_list.append(bgra_image)
+                        
+                    except Exception as e:
+                        print(f"Error decoding base64 image: {e}")
+                        # エラーの場合はダミー画像を作成
+                        dummy_image = np.zeros((64, 64, 4), dtype=np.uint8)
+                        image_list.append(dummy_image)
+                else:
+                    # テンソルの場合（従来通り）
+                    # PIL経由でnumpy配列に変換
+                    pil_image = tensor_to_pil(item)
+                    numpy_image = np.array(pil_image)
+                    
+                    # BGRAフォーマットに変換（アルファチャンネル付きで処理）
+                    if numpy_image.shape[2] == 3:
+                        # アルファチャンネルを追加
+                        alpha = np.ones((numpy_image.shape[0], numpy_image.shape[1], 1), dtype=np.uint8) * 255
+                        numpy_image = np.concatenate([numpy_image, alpha], axis=2)
+                    
+                    # RGBAからBGRAに変換
+                    bgra_image = cv2.cvtColor(numpy_image, cv2.COLOR_RGBA2BGRA)
+                    image_list.append(bgra_image)
         else:
             # テンソル形式の場合（従来通り）
             if images.dim() == 4:  # バッチ次元がある場合
@@ -295,17 +349,106 @@ class MultiImageInserter:
             # エラーの場合、元のフレームを返す
             return (frames,)
 
+class ImagesToBase64Video:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "images": ("IMAGE",),
+                "fps": ("INT", {"default": 30, "min": 1, "max": 120}),
+                "output_format": (["mp4", "webm", "avi"], {"default": "mp4"}),
+                "video_quality": (["high", "medium", "low"], {"default": "medium"}),
+            }
+        }
+
+    RETURN_TYPES = ("STRING",)
+    RETURN_NAMES = ("base64_video",)
+    FUNCTION = "convert_to_base64_video"
+    CATEGORY = "Video/Export"
+
+    def convert_to_base64_video(self, images, fps, output_format, video_quality):
+        try:
+            # 一時ファイルを作成
+            with tempfile.NamedTemporaryFile(suffix=f'.{output_format}', delete=False) as temp_file:
+                temp_video_path = temp_file.name
+
+            # 画像テンソルをnumpy配列に変換
+            if isinstance(images, list):
+                # リスト形式の場合
+                frames = []
+                for image_tensor in images:
+                    frame = (image_tensor.squeeze(0).cpu().numpy() * 255).astype(np.uint8)
+                    frames.append(frame)
+            else:
+                # テンソル形式の場合
+                frames = (images.cpu().numpy() * 255).astype(np.uint8)
+
+            if len(frames) == 0:
+                return ("",)
+
+            # 最初のフレームからビデオのサイズを取得
+            first_frame = frames[0] if isinstance(frames, list) else frames[0]
+            height, width = first_frame.shape[:2]
+
+            # ビデオ品質設定
+            quality_settings = {
+                "high": {"crf": 18, "preset": "slow"},
+                "medium": {"crf": 23, "preset": "medium"},
+                "low": {"crf": 28, "preset": "fast"}
+            }
+            
+            # OpenCVでビデオライターを初期化
+            fourcc_map = {
+                "mp4": cv2.VideoWriter_fourcc(*'mp4v'),
+                "webm": cv2.VideoWriter_fourcc(*'VP80'),
+                "avi": cv2.VideoWriter_fourcc(*'XVID')
+            }
+            
+            fourcc = fourcc_map.get(output_format, cv2.VideoWriter_fourcc(*'mp4v'))
+            out = cv2.VideoWriter(temp_video_path, fourcc, fps, (width, height))
+
+            # フレームを書き込み
+            if isinstance(frames, list):
+                for frame in frames:
+                    # RGBからBGRに変換（OpenCVはBGR）
+                    bgr_frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+                    out.write(bgr_frame)
+            else:
+                for i in range(frames.shape[0]):
+                    frame = frames[i]
+                    # RGBからBGRに変換（OpenCVはBGR）
+                    bgr_frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+                    out.write(bgr_frame)
+
+            out.release()
+
+            # ビデオファイルをbase64にエンコード
+            with open(temp_video_path, 'rb') as video_file:
+                video_data = video_file.read()
+                base64_video = base64.b64encode(video_data).decode('utf-8')
+
+            # 一時ファイルを削除
+            os.unlink(temp_video_path)
+
+            return (base64_video,)
+
+        except Exception as e:
+            print(f"ImagesToBase64Video Error: {e}")
+            return ("",)
+
 # ComfyUIノード登録
 NODE_CLASS_MAPPINGS = {
     "CreateBlankFrames": CreateBlankFrames,
     "ImageFrameSelector": ImageFrameSelector,
     "MultiImageInserter": MultiImageInserter,
+    "ImagesToBase64Video": ImagesToBase64Video,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
     "CreateBlankFrames": "Create Blank Frames",
     "ImageFrameSelector": "Image Frame Selector",
     "MultiImageInserter": "Multi Image Inserter",
+    "ImagesToBase64Video": "Images to Base64 Video",
 }
 
 WEB_DIRECTORY = "./web"
