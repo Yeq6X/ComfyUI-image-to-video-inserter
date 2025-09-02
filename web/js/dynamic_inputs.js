@@ -9,16 +9,27 @@ app.registerExtension({
                     this._imageType = "IMAGE"
                     
                     // 初期フレームウィジェットを追加（値変更時に自動的にnodeに渡される）
-                    this.addWidget("number", "frame_1", 10, function(value, widget, node) { 
-                        const decimal = value - Math.floor(value);
-                        const result = decimal <= 0.5 ? Math.ceil(value) : Math.floor(value);
-                        widget.value = result;
-                    }, {"min": 0, "max": 10000, "step": 1, "precision": 0});
-                    this.addWidget("number", "frame_2", 20, function(value, widget, node) { 
-                        const decimal = value - Math.floor(value);
-                        const result = decimal <= 0.5 ? Math.ceil(value) : Math.floor(value);
-                        widget.value = result;
-                    }, {"min": 0, "max": 10000, "step": 1, "precision": 0});
+                    const w1 = this.addWidget("number", "frame_1", 10, null, {"min": 0, "max": 10000, "step": 1, "precision": 0});
+                    const originalCallback1 = w1.callback;
+                    w1.callback = function() {
+                        if (originalCallback1) originalCallback1.apply(this, arguments);
+                        const decimal = this.value - Math.floor(this.value);
+                        const result = decimal <= 0.5 ? Math.ceil(this.value) : Math.floor(this.value);
+                        if (result !== this.value) {
+                            this.value = result;
+                        }
+                    };
+                    
+                    const w2 = this.addWidget("number", "frame_2", 20, null, {"min": 0, "max": 10000, "step": 1, "precision": 0});
+                    const originalCallback2 = w2.callback;
+                    w2.callback = function() {
+                        if (originalCallback2) originalCallback2.apply(this, arguments);
+                        const decimal = this.value - Math.floor(this.value);
+                        const result = decimal <= 0.5 ? Math.ceil(this.value) : Math.floor(this.value);
+                        if (result !== this.value) {
+                            this.value = result;
+                        }
+                    };
                     
                     const updateButton = this.addWidget("button", "Update inputs", null, () => {
                         if (!this.inputs) {
@@ -70,11 +81,16 @@ app.registerExtension({
                         
                         // Add new frame widgets
                         for(let i = num_frame_widgets + 1; i <= target_number_of_inputs; ++i) {
-                            const frameWidget = this.addWidget("number", `frame_${i}`, i * 10, function(value, widget, node) { 
-                                const decimal = value - Math.floor(value);
-                                const result = decimal <= 0.5 ? Math.ceil(value) : Math.floor(value);
-                                widget.value = result;
-                            }, {"min": 0, "max": 10000, "step": 1, "precision": 0});
+                            const frameWidget = this.addWidget("number", `frame_${i}`, i * 10, null, {"min": 0, "max": 10000, "step": 1, "precision": 0});
+                            const originalCallback = frameWidget.callback;
+                            frameWidget.callback = function() {
+                                if (originalCallback) originalCallback.apply(this, arguments);
+                                const decimal = this.value - Math.floor(this.value);
+                                const result = decimal <= 0.5 ? Math.ceil(this.value) : Math.floor(this.value);
+                                if (result !== this.value) {
+                                    this.value = result;
+                                }
+                            };
                         }
                         
                         // Update inputsボタンを最後尾に移動
