@@ -7,6 +7,11 @@ app.registerExtension({
             case "ImageFrameSelector":
                 nodeType.prototype.onNodeCreated = function () {
                     this._imageType = "IMAGE"
+                    
+                    // 初期フレームウィジェットを追加
+                    this.addWidget("number", "frame_1", 10, (value) => {}, {"min": 0, "max": 10000, "step": 1});
+                    this.addWidget("number", "frame_2", 20, (value) => {}, {"min": 0, "max": 10000, "step": 1});
+                    
                     this.addWidget("button", "Update inputs", null, () => {
                         if (!this.inputs) {
                             this.inputs = [];
