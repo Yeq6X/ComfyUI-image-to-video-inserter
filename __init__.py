@@ -97,6 +97,7 @@ class ImageFrameSelector:
         return {
             "required": {
                 "inputcount": ("INT", {"default": 2, "min": 1, "max": 20, "step": 1}),
+                "output_type": (["tensor", "list"], {"default": "tensor"}),
                 "image_1": ("IMAGE",),
                 "image_2": ("IMAGE",),
             }
@@ -107,7 +108,7 @@ class ImageFrameSelector:
     FUNCTION = "select_images_and_frames"
     CATEGORY = "Video/Frames"
 
-    def select_images_and_frames(self, inputcount, **kwargs):
+    def select_images_and_frames(self, inputcount, output_type, **kwargs):
         images = []
         frame_indices = []
         
@@ -123,17 +124,60 @@ class ImageFrameSelector:
                 frame_idx = widget_values.get(f"frame_{i}", i * 10)
                 frame_indices.append(str(frame_idx))
         
-        # 画像配列を結合
-        if images:
-            combined_images = torch.cat(images, dim=0)
-        else:
-            # 空の場合はダミー画像を作成
-            combined_images = torch.zeros((1, 64, 64, 3))
-        
         # フレームインデックスをカンマ区切り文字列に変換
         indices_string = ",".join(frame_indices)
         
-        return (combined_images, indices_string)
+        # 出力タイプに応じて処理
+        if output_type == "list":
+            # リスト形式で返す（サイズ違いもそのまま）
+            if images:
+                return (images, indices_string)
+            else:
+                # 空の場合はダミー画像リストを作成
+                dummy_image = torch.zeros((1, 64, 64, 3))
+                return ([dummy_image], indices_string)
+        else:
+            # tensor形式で返す（従来通り、サイズを揃えてパディング）
+            if images:
+                # 最大サイズを取得
+                max_height = max(img.shape[1] for img in images)
+                max_width = max(img.shape[2] for img in images)
+                
+                # 全ての画像を同じサイズにパディング
+                padded_images = []
+                for img in images:
+                    # 現在のサイズ
+                    batch, height, width, channels = img.shape
+                    
+                    # パディングが必要な場合
+                    if height != max_height or width != max_width:
+                        # パディングサイズを計算（中央配置）
+                        pad_height = max_height - height
+                        pad_width = max_width - width
+                        pad_top = pad_height // 2
+                        pad_bottom = pad_height - pad_top
+                        pad_left = pad_width // 2
+                        pad_right = pad_width - pad_left
+                        
+                        # パディング実行（黒で埋める）
+                        padded_img = torch.nn.functional.pad(
+                            img.permute(0, 3, 1, 2),  # BHWC -> BCHW
+                            (pad_left, pad_right, pad_top, pad_bottom),
+                            mode='constant', 
+                            value=0
+                        ).permute(0, 2, 3, 1)  # BCHW -> BHWC
+                        
+                        padded_images.append(padded_img)
+                    else:
+                        padded_images.append(img)
+                
+                # 結合
+                combined_images = torch.cat(padded_images, dim=0)
+                return (combined_images, indices_string)
+            else:
+                # 空の場合はダミー画像を作成
+                combined_images = torch.zeros((1, 64, 64, 3))
+                return (combined_images, indices_string)
 
 class MultiImageInserter:
     @classmethod
