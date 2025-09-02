@@ -367,15 +367,15 @@ class ImagesToBase64Video:
                 "low": {"crf": 28, "preset": "fast"}
             }
             
-            # OpenCVでビデオライターを初期化
-            fourcc_map = {
-                "mp4": cv2.VideoWriter_fourcc(*'mp4v'),
-                "webm": cv2.VideoWriter_fourcc(*'VP80'),
-                "avi": cv2.VideoWriter_fourcc(*'XVID')
-            }
-            
-            fourcc = fourcc_map.get(output_format, cv2.VideoWriter_fourcc(*'mp4v'))
+            # OpenCVでビデオライターを初期化（ブラウザ互換のH.264コーデック）
+            fourcc = cv2.VideoWriter_fourcc(*'H264')  # H.264コーデックを使用
             out = cv2.VideoWriter(temp_video_path, fourcc, fps, (width, height))
+            
+            # H.264が利用できない場合のフォールバック
+            if not out.isOpened():
+                print("H264 codec not available, trying MJPG...")
+                fourcc = cv2.VideoWriter_fourcc(*'MJPG')  # Motion JPEGフォールバック
+                out = cv2.VideoWriter(temp_video_path, fourcc, fps, (width, height))
 
             # フレームを書き込み
             if isinstance(frames, list):
