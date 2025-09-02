@@ -17,3 +17,5 @@
 *.pywz
 *.pyzw
 *.pyzwz
+
+.claude
