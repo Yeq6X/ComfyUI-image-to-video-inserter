@@ -8,28 +8,9 @@ app.registerExtension({
                 nodeType.prototype.onNodeCreated = function () {
                     this._imageType = "IMAGE"
                     
-                    // 初期フレームウィジェットを追加（値変更時に自動的にnodeに渡される）
-                    const w1 = this.addWidget("number", "frame_1", 10, null, {"min": 0, "max": 10000, "step": 1, "precision": 0});
-                    const originalCallback1 = w1.callback;
-                    w1.callback = function() {
-                        if (originalCallback1) originalCallback1.apply(this, arguments);
-                        const decimal = this.value - Math.floor(this.value);
-                        const result = decimal <= 0.5 ? Math.ceil(this.value) : Math.floor(this.value);
-                        if (result !== this.value) {
-                            this.value = result;
-                        }
-                    };
-                    
-                    const w2 = this.addWidget("number", "frame_2", 20, null, {"min": 0, "max": 10000, "step": 1, "precision": 0});
-                    const originalCallback2 = w2.callback;
-                    w2.callback = function() {
-                        if (originalCallback2) originalCallback2.apply(this, arguments);
-                        const decimal = this.value - Math.floor(this.value);
-                        const result = decimal <= 0.5 ? Math.ceil(this.value) : Math.floor(this.value);
-                        if (result !== this.value) {
-                            this.value = result;
-                        }
-                    };
+                    // 初期フレーム入力を追加
+                    this.addInput("frame_1", "INT");
+                    this.addInput("frame_2", "INT");
                     
                     const updateButton = this.addWidget("button", "Update inputs", null, () => {
                         if (!this.inputs) {
@@ -41,9 +22,9 @@ app.registerExtension({
                         
                         const target_number_of_inputs = this.widgets.find(w => w.name === "inputcount")["value"];
                         const num_image_inputs = this.inputs.filter(input => input.type === this._imageType).length;
-                        const num_frame_widgets = this.widgets.filter(w => w.name && w.name.startsWith("frame_")).length;
+                        const num_frame_inputs = this.inputs.filter(input => input.name && input.name.startsWith("frame_")).length;
                         
-                        if(target_number_of_inputs === num_image_inputs && target_number_of_inputs === num_frame_widgets) {
+                        if(target_number_of_inputs === num_image_inputs && target_number_of_inputs === num_frame_inputs) {
                             return; // already set, do nothing
                         }
                         
@@ -61,13 +42,13 @@ app.registerExtension({
                             }
                         }
                         
-                        if(target_number_of_inputs < num_frame_widgets) {
-                            const widgets_to_remove = num_frame_widgets - target_number_of_inputs;
-                            for(let i = 0; i < widgets_to_remove; i++) {
-                                // 最後のframe_*ウィジェットを探して削除
-                                for(let j = this.widgets.length - 1; j >= 0; j--) {
-                                    if(this.widgets[j].name && this.widgets[j].name.startsWith("frame_")) {
-                                        this.widgets.splice(j, 1);
+                        if(target_number_of_inputs < num_frame_inputs) {
+                            const inputs_to_remove = num_frame_inputs - target_number_of_inputs;
+                            for(let i = 0; i < inputs_to_remove; i++) {
+                                // 最後のframe_*入力を探して削除
+                                for(let j = this.inputs.length - 1; j >= 0; j--) {
+                                    if(this.inputs[j].name && this.inputs[j].name.startsWith("frame_")) {
+                                        this.removeInput(j);
                                         break;
                                     }
                                 }
@@ -79,18 +60,9 @@ app.registerExtension({
                             this.addInput(`image_${i}`, this._imageType);
                         }
                         
-                        // Add new frame widgets
-                        for(let i = num_frame_widgets + 1; i <= target_number_of_inputs; ++i) {
-                            const frameWidget = this.addWidget("number", `frame_${i}`, i * 10, null, {"min": 0, "max": 10000, "step": 1, "precision": 0});
-                            const originalCallback = frameWidget.callback;
-                            frameWidget.callback = function() {
-                                if (originalCallback) originalCallback.apply(this, arguments);
-                                const decimal = this.value - Math.floor(this.value);
-                                const result = decimal <= 0.5 ? Math.ceil(this.value) : Math.floor(this.value);
-                                if (result !== this.value) {
-                                    this.value = result;
-                                }
-                            };
+                        // Add new frame inputs
+                        for(let i = num_frame_inputs + 1; i <= target_number_of_inputs; ++i) {
+                            this.addInput(`frame_${i}`, "INT");
                         }
                         
                         // Update inputsボタンを最後尾に移動

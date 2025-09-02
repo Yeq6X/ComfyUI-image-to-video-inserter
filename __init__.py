@@ -101,11 +101,14 @@ class ImageFrameSelector:
                 "output_type": (["list", "tensor"], {"default": "list"}),
                 "image_1": ("IMAGE",),
                 "image_2": ("IMAGE",),
+            },
+            "optional": {
+                "frame_1": ("INT", {"default": 10, "min": 0, "max": 10000}),
+                "frame_2": ("INT", {"default": 20, "min": 0, "max": 10000}),
+                # frame_3以上は動的に処理される
             }
         }
         
-        # frame_*パラメータは動的に追加されるので、optionalに配置
-        # ただし、実際の値はウィジェットから取得される
         return inputs
 
     RETURN_TYPES = ("IMAGE", "STRING",)
