@@ -97,7 +97,7 @@ class ImageFrameSelector:
         return {
             "required": {
                 "inputcount": ("INT", {"default": 2, "min": 1, "max": 20, "step": 1}),
-                "output_type": (["tensor", "list"], {"default": "tensor"}),
+                "output_type": (["list", "tensor"], {"default": "list"}),
                 "image_1": ("IMAGE",),
                 "image_2": ("IMAGE",),
             }
@@ -226,10 +226,11 @@ class MultiImageInserter:
         
         # 画像を分割してリストに変換
         image_list = []
-        if images.dim() == 4:  # バッチ次元がある場合
-            for i in range(images.shape[0]):
-                image_tensor = images[i:i+1]
-                
+        
+        # imagesがリストかテンソルかを判定
+        if isinstance(images, list):
+            # リスト形式の場合
+            for image_tensor in images:
                 # PIL経由でnumpy配列に変換
                 pil_image = tensor_to_pil(image_tensor)
                 numpy_image = np.array(pil_image)
@@ -243,6 +244,25 @@ class MultiImageInserter:
                 # RGBAからBGRAに変換
                 bgra_image = cv2.cvtColor(numpy_image, cv2.COLOR_RGBA2BGRA)
                 image_list.append(bgra_image)
+        else:
+            # テンソル形式の場合（従来通り）
+            if images.dim() == 4:  # バッチ次元がある場合
+                for i in range(images.shape[0]):
+                    image_tensor = images[i:i+1]
+                    
+                    # PIL経由でnumpy配列に変換
+                    pil_image = tensor_to_pil(image_tensor)
+                    numpy_image = np.array(pil_image)
+                    
+                    # BGRAフォーマットに変換（アルファチャンネル付きで処理）
+                    if numpy_image.shape[2] == 3:
+                        # アルファチャンネルを追加
+                        alpha = np.ones((numpy_image.shape[0], numpy_image.shape[1], 1), dtype=np.uint8) * 255
+                        numpy_image = np.concatenate([numpy_image, alpha], axis=2)
+                    
+                    # RGBAからBGRAに変換
+                    bgra_image = cv2.cvtColor(numpy_image, cv2.COLOR_RGBA2BGRA)
+                    image_list.append(bgra_image)
         
         # 画像挿入リストを構築
         image_insertions = []
