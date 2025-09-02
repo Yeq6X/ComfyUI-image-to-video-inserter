@@ -368,33 +368,14 @@ class ImagesToBase64Video:
             }
             
             # OpenCVでビデオライターを初期化（ブラウザ互換のH.264コーデック）
-            success = False
+            fourcc = cv2.VideoWriter_fourcc(*'H264')  # H.264コーデックを使用
+            out = cv2.VideoWriter(temp_video_path, fourcc, fps, (width, height))
             
-            # H.264の複数のフォーマットを順次試行
-            h264_fourccs = [
-                cv2.VideoWriter_fourcc(*'H264'),  # H.264
-                cv2.VideoWriter_fourcc(*'X264'),  # x264エンコーダー
-                cv2.VideoWriter_fourcc(*'avc1'),  # AVC/H.264
-                cv2.VideoWriter_fourcc(*'MJPG'),  # Motion JPEG（確実に動作）
-            ]
-            
-            for i, fourcc in enumerate(h264_fourccs):
-                fourcc_name = ['H264', 'X264', 'AVC1', 'MJPG'][i]
-                print(f"Trying codec: {fourcc_name}")
-                
+            # H.264が利用できない場合のフォールバック
+            if not out.isOpened():
+                print("H264 codec not available, trying MJPG...")
+                fourcc = cv2.VideoWriter_fourcc(*'MJPG')  # Motion JPEGフォールバック
                 out = cv2.VideoWriter(temp_video_path, fourcc, fps, (width, height))
-                
-                if out.isOpened():
-                    print(f"✅ Successfully opened with {fourcc_name} codec")
-                    success = True
-                    break
-                else:
-                    print(f"❌ {fourcc_name} codec not available")
-                    out.release()
-            
-            if not success:
-                print("❌ All codecs failed")
-                return ("",)
 
             # フレームを書き込み
             if isinstance(frames, list):
