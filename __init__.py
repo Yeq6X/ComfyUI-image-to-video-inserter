@@ -96,7 +96,7 @@ class ImageFrameSelector:
     def INPUT_TYPES(s):
         return {
             "required": {
-                "inputcount": ("INT", {"default": 2, "min": 1, "max": 20, "step": 1}),
+                "inputcount": ("INT", {"default": 2, "min": 1, "max": 1000, "step": 1}),
                 "output_type": (["list", "tensor"], {"default": "list"}),
                 "image_1": ("IMAGE",),
                 "image_2": ("IMAGE",),
