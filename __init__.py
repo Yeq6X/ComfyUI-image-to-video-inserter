@@ -180,7 +180,7 @@ class MultiImageInserter:
             "required": {
                 "frames": ("IMAGE",),
                 "images": ("IMAGE",),
-                "frame_indices": ("STRING", {"default": "10,20,30"}),
+                "frame_indices": ("STRING", {"default": "10,20,30", "multiline": True}),
                 "fade_width": ("INT", {"default": 2, "min": 0, "max": 20}),
                 "min_opacity": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 1.0, "step": 0.1}),
                 "blend_mode": (["auto", "additive", "override"], {"default": "auto"}),
