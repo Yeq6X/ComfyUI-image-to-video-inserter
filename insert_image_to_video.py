@@ -244,7 +244,8 @@ def insert_image_to_video(video_path, image_path, frame_blend_dict, output_path)
 def build_timeline(
     image_insertions: List[Tuple[int, Union[str, np.ndarray]]],
     fade_width: int,
-    total_frames: int
+    total_frames: int,
+    min_opacity: float = 0.0
 ) -> Dict[int, List[Dict]]:
     """
     画像挿入情報からフレームごとのタイムラインを構築
@@ -253,6 +254,7 @@ def build_timeline(
         image_insertions: [(frame_idx, image_path_or_array), ...]
         fade_width: フェードイン/アウトのフレーム幅
         total_frames: 総フレーム数
+        min_opacity: フェード時の最小透明度 (0.0-1.0)
     
     Returns:
         {frame_idx: [{"image": img, "weight": weight}, ...]} の辞書
@@ -279,11 +281,19 @@ def build_timeline(
             
             # 重みを計算
             if f < frame_idx:
-                # フェードイン
-                weight = 0.5 + 0.5 * (f - fade_in_start) / fade_width if fade_width > 0 else 1.0
+                # フェードイン: min_opacity から 1.0 まで
+                if fade_width > 0:
+                    progress = (f - fade_in_start) / fade_width
+                    weight = min_opacity + (1.0 - min_opacity) * progress
+                else:
+                    weight = 1.0
             elif f > frame_idx:
-                # フェードアウト
-                weight = 0.5 + 0.5 * (fade_out_end - f) / fade_width if fade_width > 0 else 1.0
+                # フェードアウト: 1.0 から min_opacity まで
+                if fade_width > 0:
+                    progress = (fade_out_end - f) / fade_width
+                    weight = min_opacity + (1.0 - min_opacity) * progress
+                else:
+                    weight = 1.0
             else:
                 # メインフレーム
                 weight = 1.0
@@ -453,7 +463,8 @@ def save_frames_to_video(frames: List[np.ndarray], output_path: str, fps: int = 
 def insert_multiple_images_to_frames(
     frames: List[np.ndarray],
     image_insertions: List[Tuple[int, Union[str, np.ndarray]]],
-    fade_width: int = 1,
+    fade_width: int = 2,
+    min_opacity: float = 0.0,
     blend_mode: str = "auto",
     background_frames: Optional[List[np.ndarray]] = None,
     verbose: bool = True
@@ -464,7 +475,8 @@ def insert_multiple_images_to_frames(
     Args:
         frames: フレーム配列
         image_insertions: [(frame_idx, image_path_or_array), ...]
-        fade_width: フェードイン/アウトのフレーム幅
+        fade_width: フェードイン/アウトのフレーム幅（デフォルト2）
+        min_opacity: フェード時の最小透明度（デフォルト0.0=完全透明, 0.5=半透明, 1.0=不透明）
         blend_mode: "auto"（calculate_blend_custom使用）, "additive", "override"
         background_frames: 背景フレーム配列（オプション）
         verbose: 詳細出力
@@ -481,7 +493,7 @@ def insert_multiple_images_to_frames(
         background_frames = frames
     
     # タイムライン構築
-    timeline = build_timeline(image_insertions, fade_width, total_frames)
+    timeline = build_timeline(image_insertions, fade_width, total_frames, min_opacity)
     
     if verbose:
         print(f"処理中: 総フレーム数 {total_frames}")
