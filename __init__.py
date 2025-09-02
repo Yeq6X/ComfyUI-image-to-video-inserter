@@ -98,9 +98,7 @@ class ImageFrameSelector:
             "required": {
                 "inputcount": ("INT", {"default": 2, "min": 1, "max": 20, "step": 1}),
                 "image_1": ("IMAGE",),
-                "frame_1": ("INT", {"default": 10, "min": 0, "max": 10000}),
                 "image_2": ("IMAGE",),
-                "frame_2": ("INT", {"default": 20, "min": 0, "max": 10000}),
             }
         }
 
@@ -113,13 +111,16 @@ class ImageFrameSelector:
         images = []
         frame_indices = []
         
+        # ウィジェットからフレーム番号を取得
+        widget_values = getattr(self, 'widget_values', {})
+        
         for i in range(1, inputcount + 1):
             image_key = f"image_{i}"
-            frame_key = f"frame_{i}"
             
             if image_key in kwargs and kwargs[image_key] is not None:
                 images.append(kwargs[image_key])
-                frame_idx = kwargs.get(frame_key, i * 10)
+                # ウィジェットの値またはデフォルト値を使用
+                frame_idx = widget_values.get(f"frame_{i}", i * 10)
                 frame_indices.append(str(frame_idx))
         
         # 画像配列を結合
