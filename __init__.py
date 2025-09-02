@@ -248,50 +248,20 @@ class MultiImageInserter:
         # imagesがリストかテンソルかを判定
         if isinstance(images, list):
             # リスト形式の場合
-            for item in images:
-                if isinstance(item, str):
-                    # base64文字列の場合
-                    try:
-                        # base64デコード
-                        image_data = base64.b64decode(item)
-                        # PIL Imageに変換
-                        pil_image = Image.open(io.BytesIO(image_data))
-                        # RGBに変換（必要に応じて）
-                        if pil_image.mode != 'RGB':
-                            pil_image = pil_image.convert('RGB')
-                        
-                        numpy_image = np.array(pil_image)
-                        
-                        # BGRAフォーマットに変換（アルファチャンネル付きで処理）
-                        if numpy_image.shape[2] == 3:
-                            # アルファチャンネルを追加
-                            alpha = np.ones((numpy_image.shape[0], numpy_image.shape[1], 1), dtype=np.uint8) * 255
-                            numpy_image = np.concatenate([numpy_image, alpha], axis=2)
-                        
-                        # RGBAからBGRAに変換
-                        bgra_image = cv2.cvtColor(numpy_image, cv2.COLOR_RGBA2BGRA)
-                        image_list.append(bgra_image)
-                        
-                    except Exception as e:
-                        print(f"Error decoding base64 image: {e}")
-                        # エラーの場合はダミー画像を作成
-                        dummy_image = np.zeros((64, 64, 4), dtype=np.uint8)
-                        image_list.append(dummy_image)
-                else:
-                    # テンソルの場合（従来通り）
-                    # PIL経由でnumpy配列に変換
-                    pil_image = tensor_to_pil(item)
-                    numpy_image = np.array(pil_image)
-                    
-                    # BGRAフォーマットに変換（アルファチャンネル付きで処理）
-                    if numpy_image.shape[2] == 3:
-                        # アルファチャンネルを追加
-                        alpha = np.ones((numpy_image.shape[0], numpy_image.shape[1], 1), dtype=np.uint8) * 255
-                        numpy_image = np.concatenate([numpy_image, alpha], axis=2)
-                    
-                    # RGBAからBGRAに変換
-                    bgra_image = cv2.cvtColor(numpy_image, cv2.COLOR_RGBA2BGRA)
-                    image_list.append(bgra_image)
+            for image_tensor in images:
+                # PIL経由でnumpy配列に変換
+                pil_image = tensor_to_pil(image_tensor)
+                numpy_image = np.array(pil_image)
+                
+                # BGRAフォーマットに変換（アルファチャンネル付きで処理）
+                if numpy_image.shape[2] == 3:
+                    # アルファチャンネルを追加
+                    alpha = np.ones((numpy_image.shape[0], numpy_image.shape[1], 1), dtype=np.uint8) * 255
+                    numpy_image = np.concatenate([numpy_image, alpha], axis=2)
+                
+                # RGBAからBGRAに変換
+                bgra_image = cv2.cvtColor(numpy_image, cv2.COLOR_RGBA2BGRA)
+                image_list.append(bgra_image)
         else:
             # テンソル形式の場合（従来通り）
             if images.dim() == 4:  # バッチ次元がある場合
@@ -436,12 +406,78 @@ class ImagesToBase64Video:
             print(f"ImagesToBase64Video Error: {e}")
             return ("",)
 
+class Base64ListToImages:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "base64_list": ("STRING", {"default": "", "multiline": True}),
+                "separator": (["newline", "comma"], {"default": "newline"}),
+            }
+        }
+
+    RETURN_TYPES = ("IMAGE",)
+    RETURN_NAMES = ("images",)
+    FUNCTION = "convert_base64_list"
+    CATEGORY = "Image/Convert"
+
+    def convert_base64_list(self, base64_list, separator):
+        try:
+            # 区切り文字で分割
+            if separator == "newline":
+                base64_strings = [s.strip() for s in base64_list.split('\n') if s.strip()]
+            else:  # comma
+                base64_strings = [s.strip() for s in base64_list.split(',') if s.strip()]
+
+            if not base64_strings:
+                # 空の場合はダミー画像を返す
+                dummy_image = torch.zeros((1, 64, 64, 3))
+                return ([dummy_image],)
+
+            # Base64文字列を画像テンソルのリストに変換
+            image_tensors = []
+            for b64_string in base64_strings:
+                try:
+                    # Data URIの場合はヘッダーを除去
+                    if b64_string.startswith('data:'):
+                        b64_string = b64_string.split(',', 1)[1]
+                    
+                    # base64デコード
+                    image_data = base64.b64decode(b64_string)
+                    
+                    # PIL Imageに変換
+                    pil_image = Image.open(io.BytesIO(image_data))
+                    
+                    # RGBに変換（必要に応じて）
+                    if pil_image.mode != 'RGB':
+                        pil_image = pil_image.convert('RGB')
+                    
+                    # ComfyUIテンソル形式に変換
+                    tensor = pil_to_tensor(pil_image)
+                    image_tensors.append(tensor)
+                    
+                except Exception as e:
+                    print(f"Error decoding base64 image: {e}")
+                    # エラーの場合はダミー画像を作成
+                    dummy_image = torch.zeros((1, 64, 64, 3))
+                    image_tensors.append(dummy_image)
+            
+            # リスト形式で返す（MultiImageInserterがリストを受け入れるため）
+            return (image_tensors,)
+            
+        except Exception as e:
+            print(f"Base64ListToImages Error: {e}")
+            # エラーの場合はダミー画像を返す
+            dummy_image = torch.zeros((1, 64, 64, 3))
+            return ([dummy_image],)
+
 # ComfyUIノード登録
 NODE_CLASS_MAPPINGS = {
     "CreateBlankFrames": CreateBlankFrames,
     "ImageFrameSelector": ImageFrameSelector,
     "MultiImageInserter": MultiImageInserter,
     "ImagesToBase64Video": ImagesToBase64Video,
+    "Base64ListToImages": Base64ListToImages,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -449,6 +485,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "ImageFrameSelector": "Image Frame Selector",
     "MultiImageInserter": "Multi Image Inserter",
     "ImagesToBase64Video": "Images to Base64 Video",
+    "Base64ListToImages": "Base64 List to Images",
 }
 
 WEB_DIRECTORY = "./web"
