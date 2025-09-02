@@ -8,10 +8,6 @@ app.registerExtension({
                 nodeType.prototype.onNodeCreated = function () {
                     this._imageType = "IMAGE"
                     
-                    // 初期フレーム入力を追加
-                    this.addInput("frame_1", "INT");
-                    this.addInput("frame_2", "INT");
-                    
                     const updateButton = this.addWidget("button", "Update inputs", null, () => {
                         if (!this.inputs) {
                             this.inputs = [];
@@ -22,13 +18,12 @@ app.registerExtension({
                         
                         const target_number_of_inputs = this.widgets.find(w => w.name === "inputcount")["value"];
                         const num_image_inputs = this.inputs.filter(input => input.type === this._imageType).length;
-                        const num_frame_inputs = this.inputs.filter(input => input.name && input.name.startsWith("frame_")).length;
                         
-                        if(target_number_of_inputs === num_image_inputs && target_number_of_inputs === num_frame_inputs) {
+                        if(target_number_of_inputs === num_image_inputs) {
                             return; // already set, do nothing
                         }
                         
-                        // Remove excess inputs and widgets
+                        // Remove excess inputs
                         if(target_number_of_inputs < num_image_inputs) {
                             const inputs_to_remove = num_image_inputs - target_number_of_inputs;
                             for(let i = 0; i < inputs_to_remove; i++) {
@@ -42,27 +37,9 @@ app.registerExtension({
                             }
                         }
                         
-                        if(target_number_of_inputs < num_frame_inputs) {
-                            const inputs_to_remove = num_frame_inputs - target_number_of_inputs;
-                            for(let i = 0; i < inputs_to_remove; i++) {
-                                // 最後のframe_*入力を探して削除
-                                for(let j = this.inputs.length - 1; j >= 0; j--) {
-                                    if(this.inputs[j].name && this.inputs[j].name.startsWith("frame_")) {
-                                        this.removeInput(j);
-                                        break;
-                                    }
-                                }
-                            }
-                        }
-                        
                         // Add new inputs
                         for(let i = num_image_inputs + 1; i <= target_number_of_inputs; ++i) {
                             this.addInput(`image_${i}`, this._imageType);
-                        }
-                        
-                        // Add new frame inputs
-                        for(let i = num_frame_inputs + 1; i <= target_number_of_inputs; ++i) {
-                            this.addInput(`frame_${i}`, "INT");
                         }
                         
                         // Update inputsボタンを最後尾に移動

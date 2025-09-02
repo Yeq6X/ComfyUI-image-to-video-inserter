@@ -101,11 +101,7 @@ class ImageFrameSelector:
                 "output_type": (["list", "tensor"], {"default": "list"}),
                 "image_1": ("IMAGE",),
                 "image_2": ("IMAGE",),
-            },
-            "optional": {
-                "frame_1": ("INT", {"default": 10, "min": 0, "max": 10000}),
-                "frame_2": ("INT", {"default": 20, "min": 0, "max": 10000}),
-                # frame_3以上は動的に処理される
+                "frame_indices": ("STRING", {"default": "10,20", "multiline": False}),
             }
         }
         
@@ -116,36 +112,41 @@ class ImageFrameSelector:
     FUNCTION = "select_images_and_frames"
     CATEGORY = "Video/Frames"
 
-    def select_images_and_frames(self, inputcount, output_type, **kwargs):
+    def select_images_and_frames(self, inputcount, output_type, frame_indices="10,20", **kwargs):
         images = []
-        frame_indices = []
         
-        # デバッグ用：kwargsの内容を出力
-        print(f"DEBUG: ImageFrameSelector kwargs keys: {list(kwargs.keys())}")
+        # フレームインデックス文字列を解析
+        if frame_indices.strip():
+            # カンマ区切りで分割して整数リストに変換
+            indices_list = []
+            parts = frame_indices.replace(" ", "").split(",")
+            for part in parts:
+                try:
+                    indices_list.append(int(part))
+                except ValueError:
+                    print(f"Warning: Invalid frame index '{part}', skipping")
+        else:
+            indices_list = []
         
+        # 画像を収集し、対応するフレームインデックスを取得
+        result_indices = []
         for i in range(1, inputcount + 1):
             image_key = f"image_{i}"
-            frame_key = f"frame_{i}"
             
             # 画像が存在する場合のみ処理
             if image_key in kwargs and kwargs[image_key] is not None:
                 images.append(kwargs[image_key])
                 
-                # フレーム番号の取得を試行
-                frame_idx = i * 10  # デフォルト値
+                # 対応するフレームインデックスを取得（不足分はデフォルト値）
+                if i - 1 < len(indices_list):
+                    frame_idx = indices_list[i - 1]
+                else:
+                    frame_idx = i * 10  # デフォルト値
                 
-                # 複数の方法でフレーム値を取得を試行
-                if frame_key in kwargs:
-                    try:
-                        frame_idx = int(kwargs[frame_key])
-                        print(f"DEBUG: Got frame_{i} = {frame_idx} from kwargs")
-                    except (ValueError, TypeError):
-                        print(f"DEBUG: Failed to parse frame_{i} from kwargs: {kwargs[frame_key]}")
-                
-                frame_indices.append(str(frame_idx))
+                result_indices.append(str(frame_idx))
         
-        # フレームインデックスをカンマ区切り文字列に変換
-        indices_string = ",".join(frame_indices)
+        # 結果のフレームインデックス文字列
+        indices_string = ",".join(result_indices) if result_indices else frame_indices
         
         # 出力タイプに応じて処理
         if output_type == "list":
