@@ -62,7 +62,7 @@ app.registerExtension({
                         
                         // Add new frame widgets
                         for(let i = num_frame_widgets + 1; i <= target_number_of_inputs; ++i) {
-                            const frameWidget = this.addWidget("INT", `frame_${i}`, i * 10, null, {"min": 0, "max": 10000, "step": 1, "precision": 0});
+                            const frameWidget = this.addWidget("INT", `frame_${i}`, i * 10, null, {"min": 0, "max": 10000, "step": 1});
                         }
                         
                         // Update inputsボタンを最後尾に移動
