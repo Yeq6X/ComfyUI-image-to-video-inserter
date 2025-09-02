@@ -9,13 +9,15 @@ app.registerExtension({
                     this._imageType = "IMAGE"
                     
                     // 初期フレームウィジェットを追加（値変更時に自動的にnodeに渡される）
-                    this.addWidget("number", "frame_1", 10, function(v) { 
-                        const decimal = v - Math.floor(v);
-                        return decimal <= 0.5 ? Math.ceil(v) : Math.floor(v);
+                    this.addWidget("number", "frame_1", 10, function(value, widget, node) { 
+                        const decimal = value - Math.floor(value);
+                        const result = decimal <= 0.5 ? Math.ceil(value) : Math.floor(value);
+                        widget.value = result;
                     }, {"min": 0, "max": 10000, "step": 1, "precision": 0});
-                    this.addWidget("number", "frame_2", 20, function(v) { 
-                        const decimal = v - Math.floor(v);
-                        return decimal <= 0.5 ? Math.ceil(v) : Math.floor(v);
+                    this.addWidget("number", "frame_2", 20, function(value, widget, node) { 
+                        const decimal = value - Math.floor(value);
+                        const result = decimal <= 0.5 ? Math.ceil(value) : Math.floor(value);
+                        widget.value = result;
                     }, {"min": 0, "max": 10000, "step": 1, "precision": 0});
                     
                     const updateButton = this.addWidget("button", "Update inputs", null, () => {
@@ -68,9 +70,10 @@ app.registerExtension({
                         
                         // Add new frame widgets
                         for(let i = num_frame_widgets + 1; i <= target_number_of_inputs; ++i) {
-                            const frameWidget = this.addWidget("number", `frame_${i}`, i * 10, function(v) { 
-                                const decimal = v - Math.floor(v);
-                                return decimal <= 0.5 ? Math.ceil(v) : Math.floor(v);
+                            const frameWidget = this.addWidget("number", `frame_${i}`, i * 10, function(value, widget, node) { 
+                                const decimal = value - Math.floor(value);
+                                const result = decimal <= 0.5 ? Math.ceil(value) : Math.floor(value);
+                                widget.value = result;
                             }, {"min": 0, "max": 10000, "step": 1, "precision": 0});
                         }
                         
