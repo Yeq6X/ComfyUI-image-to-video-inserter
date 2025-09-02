@@ -9,8 +9,8 @@ app.registerExtension({
                     this._imageType = "IMAGE"
                     
                     // 初期フレームウィジェットを追加（値変更時に自動的にnodeに渡される）
-                    this.addWidget("number", "frame_1", 10, null, {"min": 0, "max": 10000, "step": 1, "precision": 0});
-                    this.addWidget("number", "frame_2", 20, null, {"min": 0, "max": 10000, "step": 1, "precision": 0});
+                    this.addWidget("INT:number", "frame_1", 10, function(v) { return Math.round(v); }, {"min": 0, "max": 10000, "step": 1});
+                    this.addWidget("INT:number", "frame_2", 20, function(v) { return Math.round(v); }, {"min": 0, "max": 10000, "step": 1});
                     
                     const updateButton = this.addWidget("button", "Update inputs", null, () => {
                         if (!this.inputs) {
@@ -62,7 +62,7 @@ app.registerExtension({
                         
                         // Add new frame widgets
                         for(let i = num_frame_widgets + 1; i <= target_number_of_inputs; ++i) {
-                            const frameWidget = this.addWidget("number", `frame_${i}`, i * 10, null, {"min": 0, "max": 10000, "step": 1, "precision": 0});
+                            const frameWidget = this.addWidget("INT:number", `frame_${i}`, i * 10, function(v) { return Math.round(v); }, {"min": 0, "max": 10000, "step": 1});
                         }
                         
                         // Update inputsボタンを最後尾に移動
