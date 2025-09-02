@@ -471,6 +471,95 @@ class Base64ListToImages:
             dummy_image = torch.zeros((1, 64, 64, 3))
             return ([dummy_image],)
 
+class Base64VideoToImages:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "base64_video": ("STRING", {"default": "", "multiline": True}),
+                "frame_step": ("INT", {"default": 1, "min": 1, "max": 100}),
+            },
+            "optional": {
+                "max_frames": ("INT", {"default": 0, "min": 0, "max": 10000}),
+            }
+        }
+
+    RETURN_TYPES = ("IMAGE",)
+    RETURN_NAMES = ("frames",)
+    FUNCTION = "convert_base64_video"
+    CATEGORY = "Video/Import"
+
+    def convert_base64_video(self, base64_video, frame_step, **kwargs):
+        try:
+            max_frames = kwargs.get("max_frames", 0)
+            
+            if not base64_video.strip():
+                # 空の場合はダミー画像を返す
+                dummy_image = torch.zeros((1, 64, 64, 3))
+                return (dummy_image,)
+
+            # Data URIの場合はヘッダーを除去
+            if base64_video.startswith('data:'):
+                base64_video = base64_video.split(',', 1)[1]
+            
+            # base64デコード
+            video_data = base64.b64decode(base64_video)
+            
+            # 一時ファイルに保存
+            with tempfile.NamedTemporaryFile(suffix='.mp4', delete=False) as temp_file:
+                temp_video_path = temp_file.name
+                temp_file.write(video_data)
+            
+            # OpenCVでビデオを読み込み
+            cap = cv2.VideoCapture(temp_video_path)
+            
+            if not cap.isOpened():
+                print("Error: Could not open video file")
+                os.unlink(temp_video_path)
+                dummy_image = torch.zeros((1, 64, 64, 3))
+                return (dummy_image,)
+            
+            frames = []
+            frame_count = 0
+            extracted_count = 0
+            
+            while True:
+                ret, frame = cap.read()
+                if not ret:
+                    break
+                
+                # フレームステップに従ってフレームを抽出
+                if frame_count % frame_step == 0:
+                    # BGRからRGBに変換
+                    rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                    frames.append(rgb_frame)
+                    extracted_count += 1
+                    
+                    # 最大フレーム数に達した場合は終了
+                    if max_frames > 0 and extracted_count >= max_frames:
+                        break
+                
+                frame_count += 1
+            
+            cap.release()
+            os.unlink(temp_video_path)
+            
+            if not frames:
+                # フレームが取得できない場合はダミー画像を返す
+                dummy_image = torch.zeros((1, 64, 64, 3))
+                return (dummy_image,)
+            
+            # ComfyUIテンソル形式に変換
+            frames_tensor = frames_to_tensor(frames)
+            
+            return (frames_tensor,)
+            
+        except Exception as e:
+            print(f"Base64VideoToImages Error: {e}")
+            # エラーの場合はダミー画像を返す
+            dummy_image = torch.zeros((1, 64, 64, 3))
+            return (dummy_image,)
+
 # ComfyUIノード登録
 NODE_CLASS_MAPPINGS = {
     "CreateBlankFrames": CreateBlankFrames,
@@ -478,6 +567,7 @@ NODE_CLASS_MAPPINGS = {
     "MultiImageInserter": MultiImageInserter,
     "ImagesToBase64Video": ImagesToBase64Video,
     "Base64ListToImages": Base64ListToImages,
+    "Base64VideoToImages": Base64VideoToImages,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -486,6 +576,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "MultiImageInserter": "Multi Image Inserter",
     "ImagesToBase64Video": "Images to Base64 Video",
     "Base64ListToImages": "Base64 List to Images",
+    "Base64VideoToImages": "Base64 Video to Images",
 }
 
 WEB_DIRECTORY = "./web"
