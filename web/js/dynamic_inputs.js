@@ -9,8 +9,8 @@ app.registerExtension({
                     this._imageType = "IMAGE"
                     
                     // 初期フレームウィジェットを追加（値変更時に自動的にnodeに渡される）
-                    this.addWidget("number", "frame_1", 10, null, {"min": 0, "max": 10000, "step": 1, "precision": 0});
-                    this.addWidget("number", "frame_2", 20, null, {"min": 0, "max": 10000, "step": 1, "precision": 0});
+                    this.addWidget("int", "frame_1", 10, null, {"min": 0, "max": 10000, "step": 1, "precision": 0});
+                    this.addWidget("int", "frame_2", 20, null, {"min": 0, "max": 10000, "step": 1, "precision": 0});
                     
                     const updateButton = this.addWidget("button", "Update inputs", null, () => {
                         if (!this.inputs) {
