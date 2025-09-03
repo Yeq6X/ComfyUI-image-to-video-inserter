@@ -6,7 +6,11 @@ import base64
 import io
 import tempfile
 import os
+import logging
 from typing import List, Tuple, Union, Optional, Dict
+
+# ロガーの設定
+log = logging.getLogger(__name__)
 
 # 既存のinsert_image_to_video.pyから必要な関数をインポート
 from .insert_image_to_video import (
@@ -560,6 +564,243 @@ class Base64VideoToImages:
             dummy_image = torch.zeros((1, 64, 64, 3))
             return (dummy_image,)
 
+class WanVideoLatentZeroFrames:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": {
+                    "samples": ("LATENT",),
+                    "frame_indices": ("STRING", {"default": "0", "tooltip": "Comma-separated frame indices to zero out (e.g., '0,1,2,6-9,12')"}),
+                }
+                }
+
+    RETURN_TYPES = ("LATENT",)
+    RETURN_NAMES = ("samples",)
+    FUNCTION = "zero_frames"
+    CATEGORY = "image/video"
+    DESCRIPTION = "Zero out specific frames in latent tensor by indices"
+
+    def parse_indices(self, indices_str, max_frames=None):
+        """Parse comma-separated indices string, supporting ranges and negative indices.
+        
+        Supported formats:
+        - Single index: '5'
+        - Negative index: '-1' (last frame), '-2' (second to last)
+        - Range: '5-10'
+        - Range to negative: '5--1' (5 to last), '0--5' (0 to 5th from end)
+        - Negative range: '-5--1' (last 5 frames)
+        """
+        indices = []
+        parts = indices_str.replace(" ", "").split(",")
+        
+        for part in parts:
+            if "--" in part:
+                # Handle range to negative index (e.g., '5--1', '0--5')
+                if max_frames is None:
+                    raise ValueError("Cannot use negative indices without knowing total frame count")
+                start, neg_end = part.split("--")
+                try:
+                    if start.startswith("-"):
+                        # '-5--1' means from 5th from end to last
+                        start_idx = max_frames + int(start)
+                    else:
+                        # '5--1' means from index 5 to last
+                        start_idx = int(start)
+                    
+                    # Convert negative end to actual index
+                    end_idx = max_frames + int("-" + neg_end)
+                    
+                    if start_idx < 0 or start_idx >= max_frames:
+                        raise ValueError(f"Start index {start} is out of bounds for {max_frames} frames")
+                    if end_idx < 0 or end_idx >= max_frames:
+                        raise ValueError(f"End index -{neg_end} is out of bounds for {max_frames} frames")
+                    
+                    indices.extend(range(start_idx, end_idx + 1))
+                except ValueError as e:
+                    raise ValueError(f"Invalid range format: {part}. {str(e)}")
+            elif "-" in part and not part.startswith("-"):
+                # Handle normal range notation (e.g., '5-10')
+                start, end = part.split("-")
+                try:
+                    start_idx = int(start)
+                    end_idx = int(end)
+                    indices.extend(range(start_idx, end_idx + 1))
+                except ValueError:
+                    raise ValueError(f"Invalid range format: {part}")
+            elif part.startswith("-"):
+                # Handle negative index (e.g., '-1' for last frame)
+                if max_frames is None:
+                    raise ValueError("Cannot use negative indices without knowing total frame count")
+                try:
+                    neg_idx = int(part)
+                    actual_idx = max_frames + neg_idx
+                    if actual_idx < 0 or actual_idx >= max_frames:
+                        raise ValueError(f"Negative index {part} is out of bounds for {max_frames} frames")
+                    indices.append(actual_idx)
+                except ValueError:
+                    raise ValueError(f"Invalid negative index format: {part}")
+            else:
+                # Handle single positive index
+                try:
+                    indices.append(int(part))
+                except ValueError:
+                    raise ValueError(f"Invalid index format: {part}")
+        
+        return sorted(set(indices))  # Remove duplicates and sort
+
+    def zero_frames(self, samples, frame_indices):
+        samples = samples.copy()
+        latents = samples["samples"].clone()
+        
+        # Get tensor dimensions (B, C, T, H, W)
+        B, C, T, H, W = latents.shape
+        
+        # Parse frame indices with max_frames
+        indices = self.parse_indices(frame_indices, max_frames=T)
+        
+        # Check if any index is out of bounds
+        for idx in indices:
+            if idx < 0 or idx >= T:
+                raise ValueError(f"Frame index {idx} is out of bounds. Valid range is 0-{T-1}")
+        
+        # Zero out specified frames
+        for idx in indices:
+            latents[:, :, idx, :, :] = 0
+        
+        log.info(f"WanVideoLatentZeroFrames: Zeroed frames at indices {indices} in latent shape {latents.shape}")
+        
+        return ({"samples": latents, "noise_mask": samples.get("noise_mask")},)
+
+class WanVideoLatentInsertFrames:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "samples": ("LATENT",),
+                "frame_indices": ("STRING", {"default": "0", "tooltip": "Comma-separated frame indices to insert frames (e.g., '0,1,2,6-9,12')"}),
+                "inputcount": ("INT", {"default": 2, "min": 2, "max": 100, "step": 1}),
+                "latent_1": ("LATENT",),
+                "latent_2": ("LATENT",),
+            },
+        }
+
+    RETURN_TYPES = ("LATENT",)
+    RETURN_NAMES = ("samples",)
+    FUNCTION = "insert_frames"
+    CATEGORY = "image/video"
+    DESCRIPTION = """
+Insert single-frame latents at specified positions in latent tensor.  
+You can set how many inputs the node has,  
+with the **inputcount** and clicking update.
+"""
+
+    def parse_indices(self, indices_str, max_frames=None):
+        """Parse comma-separated indices string, supporting ranges and negative indices.
+        
+        Supported formats:
+        - Single index: '5'
+        - Negative index: '-1' (last frame), '-2' (second to last)
+        - Range: '5-10'
+        - Range to negative: '5--1' (5 to last), '0--5' (0 to 5th from end)
+        - Negative range: '-5--1' (last 5 frames)
+        """
+        indices = []
+        parts = indices_str.replace(" ", "").split(",")
+        
+        for part in parts:
+            if "--" in part:
+                # Handle range to negative index (e.g., '5--1', '0--5')
+                if max_frames is None:
+                    raise ValueError("Cannot use negative indices without knowing total frame count")
+                start, neg_end = part.split("--")
+                try:
+                    if start.startswith("-"):
+                        # '-5--1' means from 5th from end to last
+                        start_idx = max_frames + int(start)
+                    else:
+                        # '5--1' means from index 5 to last
+                        start_idx = int(start)
+                    
+                    # Convert negative end to actual index
+                    end_idx = max_frames + int("-" + neg_end)
+                    
+                    if start_idx < 0 or start_idx >= max_frames:
+                        raise ValueError(f"Start index {start} is out of bounds for {max_frames} frames")
+                    if end_idx < 0 or end_idx >= max_frames:
+                        raise ValueError(f"End index -{neg_end} is out of bounds for {max_frames} frames")
+                    
+                    indices.extend(range(start_idx, end_idx + 1))
+                except ValueError as e:
+                    raise ValueError(f"Invalid range format: {part}. {str(e)}")
+            elif "-" in part and not part.startswith("-"):
+                # Handle normal range notation (e.g., '5-10')
+                start, end = part.split("-")
+                try:
+                    start_idx = int(start)
+                    end_idx = int(end)
+                    indices.extend(range(start_idx, end_idx + 1))
+                except ValueError:
+                    raise ValueError(f"Invalid range format: {part}")
+            elif part.startswith("-"):
+                # Handle negative index (e.g., '-1' for last frame)
+                if max_frames is None:
+                    raise ValueError("Cannot use negative indices without knowing total frame count")
+                try:
+                    neg_idx = int(part)
+                    actual_idx = max_frames + neg_idx
+                    if actual_idx < 0 or actual_idx >= max_frames:
+                        raise ValueError(f"Negative index {part} is out of bounds for {max_frames} frames")
+                    indices.append(actual_idx)
+                except ValueError:
+                    raise ValueError(f"Invalid negative index format: {part}")
+            else:
+                # Handle single positive index
+                try:
+                    indices.append(int(part))
+                except ValueError:
+                    raise ValueError(f"Invalid index format: {part}")
+        
+        return sorted(set(indices))  # Remove duplicates and sort
+
+    def insert_frames(self, samples, frame_indices, inputcount, **kwargs):
+        samples = samples.copy()
+        latents = samples["samples"].clone()
+        
+        # Get tensor dimensions (B, C, T, H, W)
+        B, C, T, H, W = latents.shape
+        
+        # Parse frame indices with max_frames
+        indices = self.parse_indices(frame_indices, max_frames=T)
+        
+        # Check if any index is out of bounds
+        for idx in indices:
+            if idx < 0 or idx >= T:
+                raise ValueError(f"Frame index {idx} is out of bounds. Valid range is 0-{T-1}")
+        
+        # Collect input latents (following ImageConcatMulti pattern)
+        input_latents = []
+        for c in range(1, inputcount + 1):
+            input_latent = kwargs[f"latent_{c}"]["samples"]
+            # Check if input latent has T=1
+            if input_latent.shape[2] != 1:
+                raise ValueError(f"Input latent_{c} must have exactly 1 frame (T=1), got T={input_latent.shape[2]}")
+            # Check dimensions match
+            if input_latent.shape[0] != B or input_latent.shape[1] != C or input_latent.shape[3] != H or input_latent.shape[4] != W:
+                raise ValueError(f"Input latent_{c} dimensions don't match. Expected B={B}, C={C}, H={H}, W={W}")
+            input_latents.append(input_latent)
+        
+        # Check if we have enough input latents for the specified indices
+        if len(indices) > len(input_latents):
+            raise ValueError(f"Number of indices ({len(indices)}) exceeds number of input latents ({len(input_latents)})")
+        
+        # Insert frames at specified positions
+        for i, idx in enumerate(indices):
+            if i < len(input_latents):
+                latents[:, :, idx:idx+1, :, :] = input_latents[i]
+        
+        log.info(f"WanVideoLatentInsertFrames: Inserted {min(len(indices), len(input_latents))} frames at indices {indices[:min(len(indices), len(input_latents))]} in latent shape {latents.shape}")
+        
+        return ({"samples": latents, "noise_mask": samples.get("noise_mask")},)
+
 # ComfyUIノード登録
 NODE_CLASS_MAPPINGS = {
     "CreateBlankFrames": CreateBlankFrames,
@@ -568,6 +809,8 @@ NODE_CLASS_MAPPINGS = {
     "ImagesToBase64Video": ImagesToBase64Video,
     "Base64ListToImages": Base64ListToImages,
     "Base64VideoToImages": Base64VideoToImages,
+    "WanVideoLatentZeroFrames": WanVideoLatentZeroFrames,
+    "WanVideoLatentInsertFrames": WanVideoLatentInsertFrames,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -577,6 +820,8 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "ImagesToBase64Video": "Images to Base64 Video",
     "Base64ListToImages": "Base64 List to Images",
     "Base64VideoToImages": "Base64 Video to Images",
+    "WanVideoLatentZeroFrames": "WanVideo Latent Zero Frames",
+    "WanVideoLatentInsertFrames": "WanVideo Latent Insert Frames",
 }
 
 WEB_DIRECTORY = "./web"
