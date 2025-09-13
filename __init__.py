@@ -154,13 +154,21 @@ class ImageBatchAssembler:
 
     def select_images_and_frames(self, inputcount, output_type, resize_mode, **kwargs):
         images = []
-        
+
         for i in range(1, inputcount + 1):
             image_key = f"image_{i}"
-            
+
             # 画像が存在する場合のみ処理
             if image_key in kwargs and kwargs[image_key] is not None:
-                images.append(kwargs[image_key])
+                image_input = kwargs[image_key]
+
+                # リストかテンソルかを判定して展開
+                if isinstance(image_input, list):
+                    # リストの場合、各要素を追加
+                    images.extend(image_input)
+                else:
+                    # 単一画像の場合、そのまま追加
+                    images.append(image_input)
         
         # 出力タイプに応じて処理
         if output_type == "list":
