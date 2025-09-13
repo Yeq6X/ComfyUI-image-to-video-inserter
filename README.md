@@ -29,6 +29,10 @@ https://github.com/user-attachments/assets/ee8c115f-81fc-4299-af9a-1381d90b1e4a
 - **入力**: 
   - inputcount: 画像数を指定
   - output_type: 出力形式（"list" or "tensor"）
+  - resize_mode: tensor 出力時の整形モード
+    - pad: リサイズなしで中央パディング
+    - fit_short_side: 目標サイズ内に収まるよう縮小（黒縁でレターボックス）
+    - cover_fill: 目標サイズを覆うよう拡大（中央クロップで全体を埋める）
   - image_1, image_2, ... image_N: 動的に追加される画像入力
 - **出力**: 選択された画像
 - **使用方法**: inputcountを設定後、「Update inputs」ボタンで画像入力を動的に追加

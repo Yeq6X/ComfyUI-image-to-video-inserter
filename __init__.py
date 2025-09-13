@@ -1,4 +1,5 @@
 import torch
+import torch.nn.functional as F
 import numpy as np
 from PIL import Image
 import cv2
@@ -127,6 +128,12 @@ class ImageFrameSelector:
             "required": {
                 "inputcount": ("INT", {"default": 2, "min": 1, "max": 1000, "step": 1}),
                 "output_type": (["list", "tensor"], {"default": "list"}),
+                # tensor出力時のリサイズ・パディングモード
+                "resize_mode": ([
+                    "pad",              # リサイズなし中央パディング
+                    "fit_short_side",   # 最大サイズ内に収まるよう縮小（レターボックス）
+                    "cover_fill"        # 全体を埋めるよう拡大（センタークロップ）
+                ], {"default": "pad"}),
                 "image_1": ("IMAGE",),
                 "image_2": ("IMAGE",),
             }
@@ -139,7 +146,7 @@ class ImageFrameSelector:
     FUNCTION = "select_images_and_frames"
     CATEGORY = "Video/Frames"
 
-    def select_images_and_frames(self, inputcount, output_type, **kwargs):
+    def select_images_and_frames(self, inputcount, output_type, resize_mode, **kwargs):
         images = []
         
         for i in range(1, inputcount + 1):
@@ -159,47 +166,95 @@ class ImageFrameSelector:
                 dummy_image = torch.zeros((1, 64, 64, 3))
                 return ([dummy_image],)
         else:
-            # tensor形式で返す（従来通り、サイズを揃えてパディング）
-            if images:
-                # 最大サイズを取得
-                max_height = max(img.shape[1] for img in images)
-                max_width = max(img.shape[2] for img in images)
-                
-                # 全ての画像を同じサイズにパディング
-                padded_images = []
-                for img in images:
-                    # 現在のサイズ
-                    batch, height, width, channels = img.shape
-                    
-                    # パディングが必要な場合
-                    if height != max_height or width != max_width:
-                        # パディングサイズを計算（中央配置）
-                        pad_height = max_height - height
-                        pad_width = max_width - width
-                        pad_top = pad_height // 2
-                        pad_bottom = pad_height - pad_top
-                        pad_left = pad_width // 2
-                        pad_right = pad_width - pad_left
-                        
-                        # パディング実行（黒で埋める）
-                        padded_img = torch.nn.functional.pad(
-                            img.permute(0, 3, 1, 2),  # BHWC -> BCHW
-                            (pad_left, pad_right, pad_top, pad_bottom),
-                            mode='constant', 
-                            value=0
-                        ).permute(0, 2, 3, 1)  # BCHW -> BHWC
-                        
-                        padded_images.append(padded_img)
-                    else:
-                        padded_images.append(img)
-                
-                # 結合
-                combined_images = torch.cat(padded_images, dim=0)
-                return (combined_images,)
-            else:
+            # tensor形式で返す（モード切替: pad / fit_short_side / cover_fill）
+            if not images:
                 # 空の場合はダミー画像を作成
                 combined_images = torch.zeros((1, 64, 64, 3))
                 return (combined_images,)
+
+            # 目標（最大）サイズを算出
+            target_h = max(img.shape[1] for img in images)
+            target_w = max(img.shape[2] for img in images)
+
+            processed = []
+            for img in images:
+                b, h, w, c = img.shape  # B,H,W,C
+
+                if resize_mode == "pad":
+                    # リサイズなしの中央パディング
+                    pad_h = target_h - h
+                    pad_w = target_w - w
+                    if pad_h == 0 and pad_w == 0:
+                        processed.append(img)
+                        continue
+                    top = max(pad_h // 2, 0)
+                    bottom = max(pad_h - top, 0)
+                    left = max(pad_w // 2, 0)
+                    right = max(pad_w - left, 0)
+                    padded = F.pad(
+                        img.permute(0, 3, 1, 2),  # BHWC -> BCHW
+                        (left, right, top, bottom),
+                        mode="constant",
+                        value=0.0
+                    ).permute(0, 2, 3, 1)
+                    processed.append(padded)
+                    continue
+
+                # 以降はリサイズあり
+                # BCHWにしてinterpolateを使用
+                nchw = img.permute(0, 3, 1, 2)
+
+                if resize_mode == "fit_short_side":
+                    # 画像を目標サイズに収まるよう縮小（レターボックス）
+                    scale = min(target_h / h, target_w / w)
+                    new_h = max(1, int(round(h * scale)))
+                    new_w = max(1, int(round(w * scale)))
+                    resized = F.interpolate(nchw, size=(new_h, new_w), mode="bilinear", align_corners=False)
+
+                    # 中央パディングして目標サイズに合わせる
+                    pad_h = target_h - new_h
+                    pad_w = target_w - new_w
+                    top = max(pad_h // 2, 0)
+                    bottom = max(pad_h - top, 0)
+                    left = max(pad_w // 2, 0)
+                    right = max(pad_w - left, 0)
+                    padded = F.pad(resized, (left, right, top, bottom), mode="constant", value=0.0)
+                    processed.append(padded.permute(0, 2, 3, 1))  # BCHW->BHWC
+
+                elif resize_mode == "cover_fill":
+                    # 画像を目標サイズを覆うよう拡大（センタークロップ）
+                    scale = max(target_h / h, target_w / w)
+                    new_h = max(1, int(round(h * scale)))
+                    new_w = max(1, int(round(w * scale)))
+                    resized = F.interpolate(nchw, size=(new_h, new_w), mode="bilinear", align_corners=False)
+
+                    # 余分をセンタークロップして目標サイズに合わせる
+                    start_y = max((new_h - target_h) // 2, 0)
+                    start_x = max((new_w - target_w) // 2, 0)
+                    end_y = start_y + target_h
+                    end_x = start_x + target_w
+                    cropped = resized[:, :, start_y:end_y, start_x:end_x]
+                    processed.append(cropped.permute(0, 2, 3, 1))  # BCHW->BHWC
+
+                else:
+                    # 未知のモード（フォールバック: pad）
+                    pad_h = target_h - h
+                    pad_w = target_w - w
+                    top = max(pad_h // 2, 0)
+                    bottom = max(pad_h - top, 0)
+                    left = max(pad_w // 2, 0)
+                    right = max(pad_w - left, 0)
+                    padded = F.pad(
+                        img.permute(0, 3, 1, 2),
+                        (left, right, top, bottom),
+                        mode="constant",
+                        value=0.0
+                    ).permute(0, 2, 3, 1)
+                    processed.append(padded)
+
+            # 結合
+            combined_images = torch.cat(processed, dim=0)
+            return (combined_images,)
 
 class MultiImageInserter:
     @classmethod
