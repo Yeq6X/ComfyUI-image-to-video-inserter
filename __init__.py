@@ -135,10 +135,16 @@ class ImageBatchAssembler:
                     "cover_fill"        # 全体を埋めるよう拡大（センタークロップ）
                 ], {"default": "pad"}),
                 "image_1": ("IMAGE",),
+            },
+            "optional": {
                 "image_2": ("IMAGE",),
             }
         }
-        
+
+        # 追加の画像入力を動的に生成（3個目以降）
+        for i in range(3, 1001):
+            inputs["optional"][f"image_{i}"] = ("IMAGE",)
+
         return inputs
 
     RETURN_TYPES = ("IMAGE",)
