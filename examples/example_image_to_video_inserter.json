@@ -151,7 +151,7 @@
     },
     {
       "id": 4,
-      "type": "ImageFrameSelector",
+      "type": "ImageBatchAssembler",
       "pos": [
         655.4342041015625,
         1630.2275390625
@@ -203,6 +203,7 @@
       "widgets_values": [
         5,
         "list",
+        "pad",
         null
       ]
     },

@@ -120,7 +120,7 @@ class CreateBlankFrames:
         
         return (tensor_frames,)
 
-class ImageFrameSelector:
+class ImageBatchAssembler:
     @classmethod
     def INPUT_TYPES(s):
         # 基本の必須入力
@@ -859,7 +859,10 @@ with the **inputcount** and clicking update.
 # ComfyUIノード登録
 NODE_CLASS_MAPPINGS = {
     "CreateBlankFrames": CreateBlankFrames,
-    "ImageFrameSelector": ImageFrameSelector,
+    # 新名称
+    "ImageBatchAssembler": ImageBatchAssembler,
+    # 互換エイリアス（既存ワークフロー用）
+    "ImageFrameSelector": ImageBatchAssembler,
     "MultiImageInserter": MultiImageInserter,
     "ImagesToBase64Video": ImagesToBase64Video,
     "Base64ListToImages": Base64ListToImages,
@@ -870,7 +873,9 @@ NODE_CLASS_MAPPINGS = {
 
 NODE_DISPLAY_NAME_MAPPINGS = {
     "CreateBlankFrames": "Create Blank Frames",
-    "ImageFrameSelector": "Image Frame Selector",
+    "ImageBatchAssembler": "Image Batch Assembler",
+    # 互換エイリアス表示名（古い名前で表示されることを避けるため同じ表示名に）
+    "ImageFrameSelector": "Image Batch Assembler",
     "MultiImageInserter": "Multi Image Inserter",
     "ImagesToBase64Video": "Images to Base64 Video",
     "Base64ListToImages": "Base64 List to Images",

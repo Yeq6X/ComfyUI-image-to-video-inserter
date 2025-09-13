@@ -4,7 +4,8 @@ app.registerExtension({
     name: "ImageToVideoInserter.DynamicInputs",
     async beforeRegisterNodeDef(nodeType, nodeData, app) {
         switch (nodeData.name) {
-            case "ImageFrameSelector":
+            case "ImageBatchAssembler":
+            case "ImageFrameSelector": // backward compatibility
                 nodeType.prototype.onNodeCreated = function () {
                     this._imageType = "IMAGE"
                     
